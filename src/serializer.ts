@@ -7,6 +7,7 @@ import type {
   AnyInput,
   SubstackInput
 } from '@scratch-fuse/compiler'
+import type { Parameter } from '@scratch-fuse/core'
 import { Sb3Workspace, Sb3Block, Sb3Input, Sb3Field } from './base'
 import uid from './uid'
 
@@ -277,10 +278,10 @@ export function serializeFunction(func: CompiledFunction): Sb3Workspace {
 
   // 生成参数 ID
   // const argumentIds = func.decl.parameters.map(() => uid())
-  const argumentNames = func.decl.parameters.map(p => p.name.name)
+  const argumentNames = func.decl.parameters.map((p: Parameter) => p.name.name)
 
   const argumentReporterIds = Object.fromEntries(
-    func.decl.parameters.map(p => {
+    func.decl.parameters.map((p: Parameter) => {
       return [p.name.name, uid()]
     })
   )
@@ -300,7 +301,9 @@ export function serializeFunction(func: CompiledFunction): Sb3Workspace {
       argumentids: JSON.stringify(argumentNames), // dummy since we don't know the IDs when calling function
       argumentnames: JSON.stringify(argumentNames),
       argumentdefaults: JSON.stringify(
-        func.decl.parameters.map(p => (p.type.name === 'any' ? '' : 'false'))
+        func.decl.parameters.map((p: Parameter) =>
+          p.type.name === 'any' ? '' : 'false'
+        )
       ),
       warp: func.decl.once ? 'true' : 'false'
     }
@@ -326,7 +329,9 @@ export function serializeFunction(func: CompiledFunction): Sb3Workspace {
 
   for (const [name, id] of Object.entries(argumentReporterIds)) {
     // create argument_reporter_boolean for boolean arguments, argument_reporter_string_number for others
-    const param = func.decl.parameters.find(p => p.name.name === name)
+    const param = func.decl.parameters.find(
+      (p: Parameter) => p.name.name === name
+    )
     if (!param) continue
 
     const reporterBlock: Sb3Block = {
