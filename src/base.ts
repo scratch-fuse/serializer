@@ -20,6 +20,7 @@ export type Sb3ShadowInput =
   | [10, string] // [type (shadow string), shadow value]
 export type Sb3Input =
   | [3, string, Sb3ShadowInput] // [type (with reporter), block ID, shadow input]
+  | [3, Sb3ShadowInput] // [type (literal?), shadow input]
   | [1, Sb3ShadowInput] // [type (literal), shadow input]
   | [2, string] // [type (boolean reporter without shadow, or substack), block ID]
   | [1, string] // [type (any reporter without shadow), block ID]

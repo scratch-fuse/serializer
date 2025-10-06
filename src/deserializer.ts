@@ -75,9 +75,13 @@ function deserializeInput(
       }
     } else if (type === 3) {
       // [3, string, Sb3ShadowInput] - any reporter with shadow
-      const blockId = rest[0] as string
-      const reporter = deserializeReporter(blockId, context)
-      return { type: 'any', value: reporter }
+      const blockId = rest[0]
+      if (typeof blockId === 'string') {
+        const reporter = deserializeReporter(blockId, context)
+        return { type: 'any', value: reporter }
+      } else {
+        return { type: 'any', value: blockId[1] }
+      }
     }
   }
 
@@ -121,7 +125,7 @@ function isStackBlock(opcode: string): boolean {
     return false
   }
 
-  return stackPrefixes.some((prefix) => opcode.startsWith(prefix))
+  return stackPrefixes.some(prefix => opcode.startsWith(prefix))
 }
 
 /**
@@ -230,7 +234,10 @@ function deserializeBlockChain(
 /**
  * 反序列化帽子积木
  */
-function deserializeHat(blockId: string, context: DeserializationContext): Block {
+function deserializeHat(
+  blockId: string,
+  context: DeserializationContext
+): Block {
   const sb3Block = context.workspace[blockId]
   if (!sb3Block) {
     throw new Error(`Block not found: ${blockId}`)
@@ -363,9 +370,10 @@ export function deserializeFunction(workspace: Sb3Workspace): CompiledFunction {
 
   const proccode = mutation.proccode as string
   const argumentnames = JSON.parse(mutation.argumentnames as string) as string[]
-  const argumentdefaults = JSON.parse(
-    mutation.argumentdefaults as string
-  ) as (string | boolean)[]
+  const argumentdefaults = JSON.parse(mutation.argumentdefaults as string) as (
+    | string
+    | boolean
+  )[]
   const warp = mutation.warp === 'true'
 
   // 构建参数列表
@@ -381,10 +389,10 @@ export function deserializeFunction(workspace: Sb3Workspace): CompiledFunction {
 
   // 构建函数声明
   const decl: FunctionDeclaration = {
-    name: { name: proccode },
+    name: { name: '' },
     parameters,
     once: warp,
-    returnType: { name: 'void' }
+    returnType: { name: '' }
   } as FunctionDeclaration
 
   // 反序列化函数体
@@ -424,17 +432,17 @@ export function deserializeAllScripts(workspace: Sb3Workspace): Script[] {
     }
 
     // 检查是否是帽子积木
-    const isHatBlock = topLevelBlock.opcode.startsWith('event_')
+    // const isHatBlock = topLevelBlock.opcode.startsWith('event_')
 
-    if (isHatBlock) {
-      const hat = deserializeHat(topLevelId, context)
-      const nextId = topLevelBlock.next
-      const blocks = nextId ? deserializeBlockChain(nextId, context) : []
-      scripts.push({ hat, blocks })
-    } else {
-      const blocks = deserializeBlockChain(topLevelId, context)
-      scripts.push({ blocks })
-    }
+    // if (isHatBlock) {
+    const hat = deserializeHat(topLevelId, context)
+    const nextId = topLevelBlock.next
+    const blocks = nextId ? deserializeBlockChain(nextId, context) : []
+    scripts.push({ hat, blocks })
+    // } else {
+    //   const blocks = deserializeBlockChain(topLevelId, context)
+    //   scripts.push({ blocks })
+    // }
   }
 
   return scripts

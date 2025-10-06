@@ -66,6 +66,7 @@ Deserialize Scratch 3.0 projects back into compiler format:
 
 ```ts
 import {
+	Deserializer,
 	deserializeBlocks,
 	deserializeScript,
 	deserializeFunction,
@@ -77,21 +78,57 @@ import {
 const project = JSON.parse(await fs.readFile('project.json', 'utf-8'))
 const target = project.targets[0] // Get first target (stage or sprite)
 
-// Deserialize all scripts in the target
+// Method 1: Use convenience functions (creates a new Deserializer internally)
 const scripts = deserializeAllScripts(target.blocks)
-scripts.forEach(script => {
+const functions = deserializeAllFunctions(target.blocks)
+
+// Method 2: Use Deserializer class for advanced usage
+// This provides better performance and additional features:
+const deserializer = new Deserializer(target.blocks)
+
+// The Deserializer class pre-parses all function definitions
+// and maintains a function registry for efficient lookups
+console.log('Registered functions:', deserializer.getRegisteredFunctionNames())
+
+// Check if a specific function exists
+if (deserializer.hasFunction('myFunction %s')) {
+	const func = deserializer.getFunctionByProccode('myFunction %s')
+	console.log('Function found:', func.decl.name)
+}
+
+// Deserialize all scripts
+// When deserializing, procedure_call blocks automatically resolve
+// their target functions from the pre-built registry
+const allScripts = deserializer.deserializeAllScripts()
+allScripts.forEach(script => {
 	if (script.hat) {
 		console.log('Hat block:', script.hat.opcode)
 	}
 	console.log('Block count:', script.blocks.length)
 })
 
-// Deserialize all custom functions
-const functions = deserializeAllFunctions(target.blocks)
-functions.forEach(func => {
+// Get all functions
+const allFunctions = deserializer.deserializeAllFunctions()
+allFunctions.forEach(func => {
 	console.log('Function:', func.proccode)
 	console.log('Parameters:', func.decl.parameters)
 })
+
+// For a single script or function
+const singleScript = deserializer.deserializeScript()
+const singleFunction = deserializer.deserializeFunction()
+```
+
+### Key Features of the Deserializer Class
+
+The `Deserializer` class provides several advantages over the standalone functions:
+
+1. **Function Registry**: All custom functions are pre-parsed and cached during initialization
+2. **Efficient Lookups**: Functions are resolved by proccode without re-parsing
+3. **Procedure Call Resolution**: When deserializing `procedures_call` blocks, the target function is automatically resolved from the registry
+4. **State Management**: Tracks processed blocks to avoid duplicates and infinite loops
+5. **Reusable**: Create once, deserialize multiple scripts/functions without re-parsing
+
 ```
 
 ### Example: Parse a Scratch project
@@ -128,6 +165,20 @@ For plain JavaScript import (CommonJS) consumers, require the built package
 
 ### Deserialization Functions
 
+- `Deserializer` — A class for managing workspace deserialization with advanced
+	features:
+	- **Constructor**: `new Deserializer(workspace: Sb3Workspace)` — Creates a deserializer
+		instance and pre-parses all function definitions.
+	- **Instance Methods**:
+		- `deserializeBlocks(): Block[]` — Deserialize workspace into blocks.
+		- `deserializeScript(): Script` — Deserialize a single script.
+		- `deserializeFunction(): CompiledFunction` — Deserialize a single function.
+		- `deserializeAllScripts(): Script[]` — Deserialize all scripts.
+		- `deserializeAllFunctions(): CompiledFunction[]` — Deserialize all functions.
+		- `getRegisteredFunctionNames(): string[]` — Get all function proccodes.
+		- `hasFunction(proccode: string): boolean` — Check if a function exists.
+		- `getFunctionByProccode(proccode: string): CompiledFunction | null` — Get a function by proccode.
+		- `getBlockFunction(blockId: string): CompiledFunction | null` — Get the function referenced by a procedures_call block.
 - `deserializeBlocks(workspace: Sb3Workspace): Block[]` — deserialize a workspace
 	into a flat list of blocks.
 - `deserializeScript(workspace: Sb3Workspace): Script` — deserialize a workspace
@@ -138,6 +189,10 @@ For plain JavaScript import (CommonJS) consumers, require the built package
 	top-level scripts from a workspace.
 - `deserializeAllFunctions(workspace: Sb3Workspace): CompiledFunction[]` — 
 	deserialize all custom function definitions from a workspace.
+
+> **Note**: The standalone functions create a new `Deserializer` instance internally.
+> For better performance when deserializing multiple items, use the `Deserializer`
+> class directly.
 
 Types and low-level SB3 shapes are exported from the package (see `src/base.ts`)
 and include `Sb3Block`, `Sb3Workspace`, `Sb3Input`, `Sb3Field` and related
