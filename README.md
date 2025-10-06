@@ -13,6 +13,7 @@ emit Scratch projects from a FUSE-based intermediate representation.
 - Convert lists of blocks into an `Sb3Workspace`.
 - Serialize a single script (hat + blocks) into a workspace.
 - Serialize compiled functions into Scratch procedure definition blocks.
+- Deserialize Scratch 3.0 workspaces back into compiler IR format.
 - Merge and validate created workspaces.
 
 ## Installation
@@ -29,6 +30,8 @@ by the project; ensure your consuming project has the appropriate compiler
 package available for TypeScript builds.
 
 ## Quick usage
+
+### Serialization (Compiler IR → SB3)
 
 Basic TypeScript example:
 
@@ -57,10 +60,59 @@ validateWorkspace(merged)
 // inserted into an SB3 target's `blocks` field when building a full project.
 ```
 
+### Deserialization (SB3 → Compiler IR)
+
+Deserialize Scratch 3.0 projects back into compiler format:
+
+```ts
+import {
+	deserializeBlocks,
+	deserializeScript,
+	deserializeFunction,
+	deserializeAllScripts,
+	deserializeAllFunctions
+} from '@scratch-fuse/serializer'
+
+// Load a Scratch 3.0 project
+const project = JSON.parse(await fs.readFile('project.json', 'utf-8'))
+const target = project.targets[0] // Get first target (stage or sprite)
+
+// Deserialize all scripts in the target
+const scripts = deserializeAllScripts(target.blocks)
+scripts.forEach(script => {
+	if (script.hat) {
+		console.log('Hat block:', script.hat.opcode)
+	}
+	console.log('Block count:', script.blocks.length)
+})
+
+// Deserialize all custom functions
+const functions = deserializeAllFunctions(target.blocks)
+functions.forEach(func => {
+	console.log('Function:', func.proccode)
+	console.log('Parameters:', func.decl.parameters)
+})
+```
+
+### Example: Parse a Scratch project
+
+The package includes a built-in example function:
+
+```ts
+import { example } from '@scratch-fuse/serializer'
+
+// Parse a Scratch 3.0 project file
+const result = await example('./path/to/project.json')
+console.log('Scripts:', result.scripts)
+console.log('Functions:', result.functions)
+```
+
 For plain JavaScript import (CommonJS) consumers, require the built package
 (`dist/index.cjs`) or use a bundler that resolves the package `main`/`module`.
 
 ## API (high level)
+
+### Serialization Functions
 
 - `serializeBlocks(blocks: Block[]): Sb3Workspace` — serialize a flat list of
 	blocks into an SB3 workspace map.
@@ -74,14 +126,28 @@ For plain JavaScript import (CommonJS) consumers, require the built package
 - `validateWorkspace(workspace: Sb3Workspace): void` — runtime validation to
 	ensure `next`, `parent`, and input references point to existing block ids.
 
+### Deserialization Functions
+
+- `deserializeBlocks(workspace: Sb3Workspace): Block[]` — deserialize a workspace
+	into a flat list of blocks.
+- `deserializeScript(workspace: Sb3Workspace): Script` — deserialize a workspace
+	into a single script with optional hat block.
+- `deserializeFunction(workspace: Sb3Workspace): CompiledFunction` — deserialize
+	a function definition from a workspace.
+- `deserializeAllScripts(workspace: Sb3Workspace): Script[]` — deserialize all
+	top-level scripts from a workspace.
+- `deserializeAllFunctions(workspace: Sb3Workspace): CompiledFunction[]` — 
+	deserialize all custom function definitions from a workspace.
+
 Types and low-level SB3 shapes are exported from the package (see `src/base.ts`)
 and include `Sb3Block`, `Sb3Workspace`, `Sb3Input`, `Sb3Field` and related
 structures.
 
 ## Files overview
 
-- `src/index.ts` — package exports (re-exports `base`, `serializer`, and `uid`).
-- `src/serializer.ts` — core serialization logic and helpers.
+- `src/index.ts` — package exports and example function.
+- `src/serializer.ts` — core serialization logic (IR → SB3).
+- `src/deserializer.ts` — core deserialization logic (SB3 → IR).
 - `src/base.ts` — TypeScript types that model SB3 blocks, inputs and workspaces.
 - `src/uid.ts` — a small unique id generator (derived from Blockly).
 
