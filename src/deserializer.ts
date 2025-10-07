@@ -5,10 +5,11 @@ import type {
   CompiledFunction,
   BooleanInput,
   AnyInput,
-  SubstackInput
+  SubstackInput,
+  CompiledFunctionWithDefault
 } from '@scratch-fuse/compiler'
 import type { Parameter, FunctionDeclaration } from '@scratch-fuse/core'
-import { Sb3Workspace, Sb3Block, Sb3Input, Sb3Field } from './base'
+import { Sb3Workspace, Sb3Block, Sb3Input } from './base'
 
 /**
  * 反序列化上下文，用于跟踪已处理的积木
@@ -32,6 +33,7 @@ function createContext(workspace: Sb3Workspace): DeserializationContext {
  * 将 Sb3Input 转换回输入值
  */
 function deserializeInput(
+  key: string,
   input: Sb3Input,
   context: DeserializationContext
 ): BooleanInput | AnyInput | SubstackInput {
@@ -45,14 +47,41 @@ function deserializeInput(
         // [1, string] - any reporter without shadow
         const reporter = deserializeReporter(value, context)
         return { type: 'any', value: reporter }
-      } else if (Array.isArray(value)) {
+      } else if (rest[0][0] === 12) {
+        // [1, Sb3VariableInput] - variable reporter without shadow
+        return {
+          type: 'any',
+          value: {
+            opcode: 'data_variable',
+            fields: {
+              VARIABLE: rest[0][1]
+            },
+            inputs: {}
+          }
+        }
+      } else {
         // [1, Sb3ShadowInput] - literal value
-        const [shadowType, shadowValue] = value
-        return { type: 'any', value: shadowValue }
+        return { type: 'any', value: rest[0][1] }
       }
     } else if (type === 2) {
       // [2, string] - boolean reporter or substack
-      const blockId = rest[0] as string
+      const blockId = rest[0]
+      if (typeof blockId !== 'string') {
+        if (blockId[0] === 12) {
+          return {
+            type: 'any',
+            value: {
+              opcode: 'data_variable',
+              fields: {
+                VARIABLE: blockId[1]
+              },
+              inputs: {}
+            }
+          }
+        } else {
+          return { type: 'any', value: blockId[1] }
+        }
+      }
       const block = context.workspace[blockId]
 
       if (!block) {
@@ -62,7 +91,7 @@ function deserializeInput(
       // 判断是 substack 还是 boolean reporter
       // 如果积木有 parent 且 parent 不是当前输入的父积木，则是 boolean reporter
       // 否则检查是否是堆叠式积木（有 next 连接）
-      const isSubstack = block.next !== null || isStackBlock(block.opcode)
+      const isSubstack = block.next !== null || key.startsWith('SUBSTACK')
 
       if (isSubstack) {
         // substack
@@ -75,57 +104,29 @@ function deserializeInput(
       }
     } else if (type === 3) {
       // [3, string, Sb3ShadowInput] - any reporter with shadow
-      const blockId = rest[0]
-      if (typeof blockId === 'string') {
-        const reporter = deserializeReporter(blockId, context)
+      // or [3, Sb3VariableInput, Sb3ShadowInput] - variable reporter with shadow
+      const block = rest[0]
+      if (typeof block === 'string') {
+        const reporter = deserializeReporter(block, context)
         return { type: 'any', value: reporter }
+      } else if (block[0] === 12) {
+        return {
+          type: 'any',
+          value: {
+            opcode: 'data_variable',
+            fields: {
+              VARIABLE: block[1]
+            },
+            inputs: {}
+          }
+        }
       } else {
-        return { type: 'any', value: blockId[1] }
+        return { type: 'any', value: block[1] }
       }
     }
   }
 
   throw new Error(`Unsupported input format: ${JSON.stringify(input)}`)
-}
-
-/**
- * 判断是否是堆叠式积木（而非报告值积木）
- */
-function isStackBlock(opcode: string): boolean {
-  // 这里列出常见的堆叠式积木的前缀
-  const stackPrefixes = [
-    'motion_',
-    'looks_',
-    'sound_',
-    'event_',
-    'control_',
-    'data_set',
-    'data_change',
-    'data_show',
-    'data_hide',
-    'data_add',
-    'data_delete',
-    'data_insert',
-    'data_replace',
-    'procedures_call',
-    'pen_'
-  ]
-
-  // 排除报告值积木
-  const reporterOpcodes = [
-    'data_variable',
-    'data_listcontents',
-    'data_itemoflist',
-    'data_itemnumoflist',
-    'data_lengthoflist',
-    'data_listcontainsitem'
-  ]
-
-  if (reporterOpcodes.includes(opcode)) {
-    return false
-  }
-
-  return stackPrefixes.some(prefix => opcode.startsWith(prefix))
 }
 
 /**
@@ -148,7 +149,7 @@ function deserializeReporter(
 
   // 处理 inputs
   for (const [key, value] of Object.entries(sb3Block.inputs)) {
-    reporter.inputs[key] = deserializeInput(value, context)
+    reporter.inputs[key] = deserializeInput(key, value, context)
   }
 
   // 处理 fields
@@ -186,7 +187,7 @@ function deserializeBlock(
 
   // 处理 inputs
   for (const [key, value] of Object.entries(sb3Block.inputs)) {
-    block.inputs[key] = deserializeInput(value, context)
+    block.inputs[key] = deserializeInput(key, value, context)
   }
 
   // 处理 fields
@@ -253,7 +254,7 @@ function deserializeHat(
 
   // 处理 inputs
   for (const [key, value] of Object.entries(sb3Block.inputs)) {
-    hat.inputs[key] = deserializeInput(value, context)
+    hat.inputs[key] = deserializeInput(key, value, context)
   }
 
   // 处理 fields
@@ -267,6 +268,27 @@ function deserializeHat(
   }
 
   return hat
+}
+
+/**
+ * Parse proccode to extract argument types in order
+ * Returns array of argument types ('any' for %s, 'bool' for %b)
+ * Example: "aaa %s bbb %b ccc" returns ['any', 'bool']
+ * Note: Escaped sequences like %%s or %%b are not treated as parameters
+ * FIXME: Also used in @scratch-fuse/compiler, migrate to @scratch-fuse/utility?
+ */
+function parseProccodeArgumentTypes(proccode: string): ('any' | 'bool')[] {
+  const types: ('any' | 'bool')[] = []
+  // Use negative lookbehind to match %s or %b but not %%s or %%b
+  const paramRegex = /(?<!%)%([sb])/g
+  let match: RegExpExecArray | null
+
+  while ((match = paramRegex.exec(proccode)) !== null) {
+    const paramType = match[1] === 'b' ? 'bool' : 'any'
+    types.push(paramType)
+  }
+
+  return types
 }
 
 /**
@@ -332,7 +354,9 @@ export function deserializeScript(workspace: Sb3Workspace): Script {
 /**
  * 从 Sb3Workspace 反序列化为 CompiledFunction
  */
-export function deserializeFunction(workspace: Sb3Workspace): CompiledFunction {
+export function deserializeFunction(
+  workspace: Sb3Workspace
+): CompiledFunctionWithDefault {
   const context = createContext(workspace)
 
   // 找到 procedures_definition 积木
@@ -370,16 +394,15 @@ export function deserializeFunction(workspace: Sb3Workspace): CompiledFunction {
 
   const proccode = mutation.proccode as string
   const argumentnames = JSON.parse(mutation.argumentnames as string) as string[]
-  const argumentdefaults = JSON.parse(mutation.argumentdefaults as string) as (
-    | string
-    | boolean
-  )[]
+  const argumentdefaults = JSON.parse(
+    mutation.argumentdefaults as string
+  ) as string[]
+  const argumentTypes = parseProccodeArgumentTypes(proccode)
   const warp = mutation.warp === 'true'
 
   // 构建参数列表
   const parameters: Parameter[] = argumentnames.map((name, index) => {
-    const defaultValue = argumentdefaults[index]
-    const type = typeof defaultValue === 'boolean' ? 'bool' : 'any'
+    const type = argumentTypes[index] || 'any'
 
     return {
       name: { name },
@@ -402,7 +425,8 @@ export function deserializeFunction(workspace: Sb3Workspace): CompiledFunction {
   return {
     decl,
     proccode,
-    impl
+    impl,
+    defaultValues: argumentdefaults
   }
 }
 
@@ -453,8 +477,8 @@ export function deserializeAllScripts(workspace: Sb3Workspace): Script[] {
  */
 export function deserializeAllFunctions(
   workspace: Sb3Workspace
-): CompiledFunction[] {
-  const functions: CompiledFunction[] = []
+): CompiledFunctionWithDefault[] {
+  const functions: CompiledFunctionWithDefault[] = []
 
   // 找到所有 procedures_definition 积木
   const definitionIds = Object.entries(workspace)

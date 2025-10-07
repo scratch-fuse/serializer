@@ -58,7 +58,10 @@ function serializeReporter(
 
   // 处理 inputs
   for (const [key, value] of Object.entries(reporter.inputs)) {
-    sb3Block.inputs[key] = serializeInput(value, context, id)
+    const result = serializeInput(value, context, id)
+    if (result) {
+      sb3Block.inputs[key] = result
+    }
   }
 
   // 处理 fields
@@ -83,7 +86,7 @@ function serializeInput(
   input: BooleanInput | AnyInput | SubstackInput,
   context: SerializationContext,
   parentId?: string
-): Sb3Input {
+): Sb3Input | null {
   if (input.type === 'any') {
     if (typeof input.value === 'string') {
       // 字符串字面量
@@ -99,7 +102,7 @@ function serializeInput(
     return [2, reporterId]
   } else if (input.type === 'substack') {
     if (input.value.length === 0) {
-      throw new Error('Cannot serialize empty substack')
+      return null
     }
     // 是一个 substack
     const substackIds: string[] = []
@@ -146,7 +149,10 @@ function serializeBlock(
 
   // 处理 inputs
   for (const [key, value] of Object.entries(block.inputs)) {
-    sb3Block.inputs[key] = serializeInput(value, context, blockId)
+    const result = serializeInput(value, context, blockId)
+    if (result) {
+      sb3Block.inputs[key] = result
+    }
   }
 
   // 处理 fields
@@ -212,7 +218,10 @@ export function serializeScript(script: Script): Sb3Workspace {
 
     // 处理帽子积木的 inputs 和 fields
     for (const [key, value] of Object.entries(script.hat.inputs)) {
-      hatBlock.inputs[key] = serializeInput(value, context, hatId)
+      const result = serializeInput(value, context, hatId)
+      if (result) {
+        hatBlock.inputs[key] = result
+      }
     }
 
     for (const [key, value] of Object.entries(script.hat.fields)) {

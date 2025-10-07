@@ -18,12 +18,16 @@ export interface Sb3Mutation {
 export type Sb3ShadowInput =
   | [4, string] // [type (shadow number), shadow value]
   | [10, string] // [type (shadow string), shadow value]
+export type Sb3VariableInput = [12, string, string]
 export type Sb3Input =
   | [3, string, Sb3ShadowInput] // [type (with reporter), block ID, shadow input]
+  | [3, Sb3VariableInput, Sb3ShadowInput] // [type (with variable reporter), variable input, shadow input]
   | [3, Sb3ShadowInput] // [type (literal?), shadow input]
   | [1, Sb3ShadowInput] // [type (literal), shadow input]
   | [2, string] // [type (boolean reporter without shadow, or substack), block ID]
+  | [1, Sb3VariableInput]
   | [1, string] // [type (any reporter without shadow), block ID]
+  | [1, Sb3VariableInput]
 export type Sb3Field = [string, string | null] // [value, id]
 
 export type Sb3Workspace = Record<string, Sb3Block>
