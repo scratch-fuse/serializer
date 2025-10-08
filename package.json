@@ -1,0 +1,48 @@
+{
+  "name": "@scratch-fuse/serializer",
+  "version": "1.0.0",
+  "description": "Serialize FUSE Scratch IR to Scratch.",
+  "homepage": "https://github.com/scratch-fuse/serializer#readme",
+  "bugs": {
+    "url": "https://github.com/scratch-fuse/serializer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scratch-fuse/serializer.git"
+  },
+  "license": "MPL-2.0",
+  "author": "FurryR",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "@scratch-fuse/utility": "github:scratch-fuse/utility#build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "prettier": "^3.6.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "@scratch-fuse/core": "github:scratch-fuse/core#build",
+    "@scratch-fuse/compiler": "github:scratch-fuse/compiler#build"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "tsup src/index.ts --watch",
+    "lint:type": "tsc --noEmit",
+    "build": "tsup src/index.ts",
+    "format": "prettier --write ."
+  },
+  "keywords": [
+    "scratch",
+    "blocks",
+    "parser",
+    "script",
+    "fuse"
+  ],
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ]
+}
