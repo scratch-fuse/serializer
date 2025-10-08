@@ -16,13 +16,14 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "dependencies": {
-    "@scratch-fuse/core": "github:scratch-fuse/core#build"
+    "@scratch-fuse/utility": "github:scratch-fuse/utility#build"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
     "prettier": "^3.6.2",
     "tsup": "^8.5.0",
     "typescript": "^5.9.2",
+    "@scratch-fuse/core": "github:scratch-fuse/core#build",
     "@scratch-fuse/compiler": "github:scratch-fuse/compiler#build"
   },
   "scripts": {

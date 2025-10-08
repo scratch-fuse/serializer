@@ -2,13 +2,13 @@ import type {
   Script,
   Block,
   Reporter,
-  CompiledFunction,
   BooleanInput,
   AnyInput,
   SubstackInput,
   CompiledFunctionWithDefault
 } from '@scratch-fuse/compiler'
 import type { Parameter, FunctionDeclaration } from '@scratch-fuse/core'
+import { parseProccodeArgumentTypes } from '@scratch-fuse/utility'
 import { Sb3Workspace, Sb3Block, Sb3Input } from './base'
 
 /**
@@ -36,13 +36,14 @@ function deserializeInput(
   key: string,
   input: Sb3Input,
   context: DeserializationContext
-): BooleanInput | AnyInput | SubstackInput {
+): BooleanInput | AnyInput | SubstackInput | null {
   if (Array.isArray(input)) {
     const [type, ...rest] = input
 
     if (type === 1) {
       // [1, Sb3ShadowInput] 或 [1, string]
       const value = rest[0]
+      if (!value) return null
       if (typeof value === 'string') {
         // [1, string] - any reporter without shadow
         const reporter = deserializeReporter(value, context)
@@ -66,6 +67,7 @@ function deserializeInput(
     } else if (type === 2) {
       // [2, string] - boolean reporter or substack
       const blockId = rest[0]
+      if (!blockId) return null
       if (typeof blockId !== 'string') {
         if (blockId[0] === 12) {
           return {
@@ -106,6 +108,7 @@ function deserializeInput(
       // [3, string, Sb3ShadowInput] - any reporter with shadow
       // or [3, Sb3VariableInput, Sb3ShadowInput] - variable reporter with shadow
       const block = rest[0]
+      if (!block) return null
       if (typeof block === 'string') {
         const reporter = deserializeReporter(block, context)
         return { type: 'any', value: reporter }
@@ -149,7 +152,8 @@ function deserializeReporter(
 
   // 处理 inputs
   for (const [key, value] of Object.entries(sb3Block.inputs)) {
-    reporter.inputs[key] = deserializeInput(key, value, context)
+    const result = deserializeInput(key, value, context)
+    if (result) reporter.inputs[key] = result
   }
 
   // 处理 fields
@@ -187,7 +191,8 @@ function deserializeBlock(
 
   // 处理 inputs
   for (const [key, value] of Object.entries(sb3Block.inputs)) {
-    block.inputs[key] = deserializeInput(key, value, context)
+    const result = deserializeInput(key, value, context)
+    if (result) block.inputs[key] = result
   }
 
   // 处理 fields
@@ -254,7 +259,8 @@ function deserializeHat(
 
   // 处理 inputs
   for (const [key, value] of Object.entries(sb3Block.inputs)) {
-    hat.inputs[key] = deserializeInput(key, value, context)
+    const result = deserializeInput(key, value, context)
+    if (result) hat.inputs[key] = result
   }
 
   // 处理 fields
@@ -268,27 +274,6 @@ function deserializeHat(
   }
 
   return hat
-}
-
-/**
- * Parse proccode to extract argument types in order
- * Returns array of argument types ('any' for %s, 'bool' for %b)
- * Example: "aaa %s bbb %b ccc" returns ['any', 'bool']
- * Note: Escaped sequences like %%s or %%b are not treated as parameters
- * FIXME: Also used in @scratch-fuse/compiler, migrate to @scratch-fuse/utility?
- */
-function parseProccodeArgumentTypes(proccode: string): ('any' | 'bool')[] {
-  const types: ('any' | 'bool')[] = []
-  // Use negative lookbehind to match %s or %b but not %%s or %%b
-  const paramRegex = /(?<!%)%([sb])/g
-  let match: RegExpExecArray | null
-
-  while ((match = paramRegex.exec(proccode)) !== null) {
-    const paramType = match[1] === 'b' ? 'bool' : 'any'
-    types.push(paramType)
-  }
-
-  return types
 }
 
 /**
@@ -406,7 +391,7 @@ export function deserializeFunction(
 
     return {
       name: { name },
-      type: { name: type as 'any' | 'bool' }
+      type: { name: type }
     } as Parameter
   })
 
